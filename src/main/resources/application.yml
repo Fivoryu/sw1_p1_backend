@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: workflow-engine
+  data:
+    mongodb:
+      uri: ${MONGODB_URI}
+      auto-index-creation: true
+  security:
+    jwt:
+      secret: "workflow-engine-super-secret-key-for-hs512-signing-2026-atlas-backend-auth-token-secure"
+      expiration: 86400000  # 24 horas
+  graphql:
+    graphiql:
+      enabled: true
+      path: /graphiql
+    web:
+      cors:
+        allowed-origins: "*"
+        allowed-methods: GET,POST,OPTIONS
+        max-age: 3600
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+logging:
+  level:
+    root: INFO
+    com.banco.workflow: DEBUG
+    io.temporal: INFO
+    org.springframework.graphql: DEBUG
+
+# Temporal Configuration
+temporal:
+  namespace: default
+  target: localhost:7233

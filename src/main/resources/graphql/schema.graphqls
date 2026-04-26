@@ -1,0 +1,156 @@
+scalar DateTime
+scalar JSON
+
+type ProcessInstance {
+  id: String!
+  policyId: String!
+  policyName: String!
+  policyVersion: Int!
+  status: String!
+  variables: JSON!
+  initiatedAt: DateTime!
+  completedAt: DateTime
+  history: [HistoryEntry!]!
+}
+
+type HistoryEntry {
+  id: String!
+  processInstanceId: String!
+  nodeId: String
+  nodeType: String
+  nodeName: String
+  status: String!
+  timestamp: DateTime!
+  taskResult: JSON
+  errorMessage: String
+}
+
+type Task {
+  id: String!
+  processInstanceId: String!
+  nodeId: String!
+  nodeName: String!
+  nodeType: String
+  assignee: String!
+  createdAt: DateTime!
+  dueDate: DateTime
+  completedAt: DateTime
+  status: String!
+  formData: JSON
+  requiredDocuments: [String!]
+}
+
+type Policy {
+  id: String!
+  name: String!
+  version: Int!
+  status: String!
+  description: String
+  bpmnXml: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type User {
+  id: String!
+  username: String!
+  email: String!
+  departamento: String
+  roles: [String!]!
+  active: Boolean!
+}
+
+type DocumentUpload {
+  id: String!
+  processInstanceId: String!
+  fileName: String!
+  fileType: String
+  fileSize: Int
+  mimeType: String!
+  uploadedAt: DateTime!
+  status: String!
+  rejectionReason: String
+  url: String
+}
+
+type Notification {
+  id: String!
+  userId: String!
+  title: String!
+  body: String!
+  type: String!
+  relatedId: String
+  createdAt: DateTime!
+  read: Boolean!
+  metadata: JSON
+}
+
+type CompleteTaskResponse {
+  success: Boolean!
+  message: String!
+  task: Task
+  nextTasks: [Task!]
+}
+
+type DocumentUploadResponse {
+  success: Boolean!
+  message: String!
+  document: DocumentUpload
+}
+
+type GenericResponse {
+  success: Boolean!
+  message: String!
+}
+
+input CompleteTaskInput {
+  taskId: String!
+  result: JSON!
+  comments: String
+}
+
+input UploadDocumentInput {
+  processInstanceId: String!
+  fileName: String!
+  fileData: String!
+  mimeType: String!
+}
+
+type Query {
+  processes(userId: String!): [ProcessInstance!]!
+  process(id: String!): ProcessInstance
+  tasks(assignee: String!): [Task!]!
+  task(id: String!): Task
+  policies: [Policy!]!
+  policy(id: String!): Policy
+  publishedPolicies: [Policy!]!
+  documents(processInstanceId: String!): [DocumentUpload!]!
+  document(id: String!): DocumentUpload
+  notifications(userId: String!, limit: Int): [Notification!]!
+  unreadNotifications(userId: String!): [Notification!]!
+  currentUser: User
+  user(id: String!): User
+  userStatistics(userId: String!): JSON!
+  processHistory(userId: String!, limit: Int): [ProcessInstance!]!
+  processesByStatus(status: String!, limit: Int): [ProcessInstance!]!
+  tasksByStatus(status: String!, limit: Int): [Task!]!
+}
+
+type Mutation {
+  completeTask(input: CompleteTaskInput!): CompleteTaskResponse!
+  rejectTask(taskId: String!, reason: String!): CompleteTaskResponse!
+  uploadDocument(input: UploadDocumentInput!): DocumentUploadResponse!
+  validateDocument(documentId: String!): DocumentUploadResponse!
+  rejectDocument(documentId: String!, reason: String!): GenericResponse!
+  startProcess(input: JSON!): ProcessInstance!
+  pauseProcess(processId: String!): GenericResponse!
+  resumeProcess(processId: String!): GenericResponse!
+  cancelProcess(processId: String!, reason: String!): GenericResponse!
+  reassignTask(taskId: String!, newAssignee: String!): Task!
+  markNotificationAsRead(id: String!): GenericResponse!
+  markAllNotificationsAsRead(userId: String!): GenericResponse!
+  createPolicy(input: JSON!): Policy!
+  publishPolicy(policyId: String!): GenericResponse!
+  deprecatePolicy(policyId: String!): GenericResponse!
+  addComment(processInstanceId: String!, comment: String!): GenericResponse!
+}
