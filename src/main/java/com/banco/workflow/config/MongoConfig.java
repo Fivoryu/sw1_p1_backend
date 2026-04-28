@@ -1,6 +1,7 @@
 package com.banco.workflow.config;
 
 import com.mongodb.ConnectionString;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +12,15 @@ import org.springframework.util.StringUtils;
 
 @Configuration
 public class MongoConfig {
+
+    @Bean
+    MongoClient mongoClient(Environment environment) {
+        String connectionUri = environment.getProperty("spring.data.mongodb.uri");
+        if (!StringUtils.hasText(connectionUri)) {
+            throw new IllegalStateException("MONGODB_URI must be configured.");
+        }
+        return MongoClients.create(connectionUri);
+    }
 
     @Bean
     MongoDatabaseFactory mongoDatabaseFactory(MongoClient mongoClient, Environment environment) {
