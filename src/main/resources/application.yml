@@ -4,6 +4,7 @@ spring:
   data:
     mongodb:
       uri: ${MONGODB_URI}
+      database: ${MONGODB_DB:workflow1}
       auto-index-creation: true
   security:
     jwt:
