@@ -7,8 +7,8 @@ spring:
       auto-index-creation: true
   security:
     jwt:
-      secret: "workflow-engine-super-secret-key-for-hs512-signing-2026-atlas-backend-auth-token-secure"
-      expiration: 86400000  # 24 horas
+      secret: ${JWT_SECRET:workflow-engine-super-secret-key-for-hs512-signing-2026-atlas-backend-auth-token-secure}
+      expiration: ${JWT_EXPIRATION_MS:86400000}
   graphql:
     graphiql:
       enabled: true
@@ -18,6 +18,10 @@ spring:
         allowed-origins: "*"
         allowed-methods: GET,POST,OPTIONS
         max-age: 3600
+
+# Orígenes web (Angular) y Flutter web (p. ej. 4500). Set CORS_ALLOWED_ORIGINS para añadir más.
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:3000,http://localhost:4500,http://localhost:8090}
 
 server:
   port: 8080
@@ -35,3 +39,7 @@ logging:
 temporal:
   namespace: default
   target: localhost:7233
+
+workflow:
+  ai:
+    base-url: ${WORKFLOW_AI_BASE_URL:http://localhost:8090}

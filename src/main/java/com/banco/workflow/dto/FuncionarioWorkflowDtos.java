@@ -119,6 +119,21 @@ public class FuncionarioWorkflowDtos {
     @Builder
     public static class SolicitarCorreccionRequest {
         private String motivo;
+        /**
+         * Nodo humano previo al que se desea devolver (opcional).
+         * Si no se envía, el backend aplica fallback al último nodo humano previo.
+         */
+        private String targetNodeId;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class CorrectionTargetDTO {
+        private String nodeId;
+        private String nodeName;
+        private String nodeType;
     }
 
     @Data

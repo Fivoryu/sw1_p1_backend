@@ -3,9 +3,14 @@ package com.banco.workflow.service;
 import com.banco.workflow.model.DepartmentDefinition;
 import com.banco.workflow.model.FormDefinition;
 import com.banco.workflow.model.Policy;
+import com.banco.workflow.model.ProcessInstance;
 import com.banco.workflow.model.User;
 import com.banco.workflow.model.WorkflowDefinition;
+import com.banco.workflow.repository.DocumentUploadRepository;
 import com.banco.workflow.repository.PolicyRepository;
+import com.banco.workflow.repository.ProcessInstanceRepository;
+import com.banco.workflow.repository.TaskRepository;
+import com.banco.workflow.repository.WorkflowDefinitionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +37,10 @@ public class PolicyService {
     private final UserService userService;
     private final WorkflowDefinitionService workflowDefinitionService;
     private final DepartmentService departmentService;
+    private final ProcessInstanceRepository processInstanceRepository;
+    private final TaskRepository taskRepository;
+    private final DocumentUploadRepository documentUploadRepository;
+    private final WorkflowDefinitionRepository workflowDefinitionRepository;
 
     public Policy createPolicy(String name, String description, String bpmnXml,
                                List<DepartmentDefinition> departments,
@@ -178,6 +187,56 @@ public class PolicyService {
         policy.setStatus("DEPRECATED");
         policy.setUpdatedAt(LocalDateTime.now());
         policyRepository.save(policy);
+    }
+
+    /**
+     * Borra permanentemente la política y dependencias: instancias de trámite, tareas, adjuntos
+     * y versiones de {@link WorkflowDefinition} publicadas para esa política.
+     * Los formularios incrustados en el documento de política se eliminan con el documento.
+     * No elimina el catálogo reutilizable {@code forms} (DynamicForm) por ser por empresa.
+     */
+    public void permanentlyDeletePolicy(String id) {
+        User actor = requireAuthenticatedUser();
+        Policy policy = policyRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Política no encontrada: " + id));
+        if (!canViewPolicy(policy, actor)) {
+            throw new RuntimeException("No tienes permiso para ver o eliminar esta política");
+        }
+        assertIsPolicyOwnerOrAdmin(actor, policy);
+
+        java.util.List<ProcessInstance> instances = processInstanceRepository.findByPolicyId(id);
+        for (ProcessInstance instance : instances) {
+            if (instance.getId() == null) {
+                continue;
+            }
+            taskRepository.deleteByProcessInstanceId(instance.getId());
+            documentUploadRepository.deleteByProcessInstanceId(instance.getId());
+        }
+        processInstanceRepository.deleteAll(instances);
+        workflowDefinitionRepository.deleteByPolicyId(id);
+        policyRepository.deleteById(id);
+        log.info("Política {} eliminada en cascada por usuario {}", id, actor.getId());
+    }
+
+    /**
+     * El dueño de la política o un {@code ROLE_ADMIN} de la misma empresa pueden eliminar de forma definitiva.
+     * Un colaborador con edición compartida no basta, para evitar borrados accidentales.
+     */
+    private void assertIsPolicyOwnerOrAdmin(User actor, Policy policy) {
+        if (actor.getId() != null && actor.getId().equals(policy.getOwnerUserId())) {
+            return;
+        }
+        if (isAdminRole(actor) && canViewPolicy(policy, actor)) {
+            return;
+        }
+        throw new RuntimeException("Solo el dueño de la política o un administrador de la misma empresa puede eliminarla");
+    }
+
+    private boolean isAdminRole(User user) {
+        if (user.getRoles() == null) {
+            return false;
+        }
+        return user.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equalsIgnoreCase(r) || "ADMIN".equalsIgnoreCase(r));
     }
 
     private java.util.Map<String, com.banco.workflow.model.BpmnNode> parseAndValidateGraph(String bpmnXml) throws Exception {

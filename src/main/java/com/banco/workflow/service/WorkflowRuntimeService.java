@@ -54,6 +54,7 @@ public class WorkflowRuntimeService {
         instance.setPolicyId(policy.getId());
         instance.setPolicyName(policy.getName());
         instance.setPolicyVersion(policy.getVersion());
+        instance.setTenantEmpresa(policy.getTenantEmpresa() != null ? policy.getTenantEmpresa() : initiator.getEmpresa());
         instance.setTemporalProcessInstanceId("engine-" + UUID.randomUUID());
         instance.setStatus("RUNNING");
         instance.setVariables(variables);

@@ -8,6 +8,7 @@ import java.util.List;
 
 @Repository
 public interface TaskRepository extends MongoRepository<Task, String> {
+    void deleteByProcessInstanceId(String processInstanceId);
     List<Task> findByAssignee(String assignee);
     List<Task> findByCandidateRole(String candidateRole);
     List<Task> findByCandidateRoleAndStatus(String candidateRole, String status);

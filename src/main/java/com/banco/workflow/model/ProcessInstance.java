@@ -16,6 +16,7 @@ public class ProcessInstance {
     private String policyId;
     private String policyName;
     private int policyVersion;
+    private String tenantEmpresa;
     private String temporalProcessInstanceId;
     private String status;
     private Map<String, Object> variables;
@@ -31,14 +32,15 @@ public class ProcessInstance {
     }
 
     public ProcessInstance(String id, String policyId, String policyName, int policyVersion,
-                           String temporalProcessInstanceId, String status, Map<String, Object> variables,
-                           List<String> activeNodeIds, String initiatedByUserId, LocalDateTime initiatedAt,
-                           LocalDateTime completedAt, String result, List<HistoryEntry> history,
-                           List<CompletedForm> completedForms) {
+                           String tenantEmpresa, String temporalProcessInstanceId, String status,
+                           Map<String, Object> variables, List<String> activeNodeIds, String initiatedByUserId,
+                           LocalDateTime initiatedAt, LocalDateTime completedAt, String result,
+                           List<HistoryEntry> history, List<CompletedForm> completedForms) {
         this.id = id;
         this.policyId = policyId;
         this.policyName = policyName;
         this.policyVersion = policyVersion;
+        this.tenantEmpresa = tenantEmpresa;
         this.temporalProcessInstanceId = temporalProcessInstanceId;
         this.status = status;
         this.variables = variables;
@@ -63,6 +65,8 @@ public class ProcessInstance {
     public void setPolicyName(String policyName) { this.policyName = policyName; }
     public int getPolicyVersion() { return policyVersion; }
     public void setPolicyVersion(int policyVersion) { this.policyVersion = policyVersion; }
+    public String getTenantEmpresa() { return tenantEmpresa; }
+    public void setTenantEmpresa(String tenantEmpresa) { this.tenantEmpresa = tenantEmpresa; }
     public String getTemporalProcessInstanceId() { return temporalProcessInstanceId; }
     public void setTemporalProcessInstanceId(String temporalProcessInstanceId) { this.temporalProcessInstanceId = temporalProcessInstanceId; }
     public String getStatus() { return status; }
@@ -89,6 +93,7 @@ public class ProcessInstance {
         private String policyId;
         private String policyName;
         private int policyVersion;
+        private String tenantEmpresa;
         private String temporalProcessInstanceId;
         private String status;
         private Map<String, Object> variables;
@@ -104,6 +109,7 @@ public class ProcessInstance {
         public Builder policyId(String policyId) { this.policyId = policyId; return this; }
         public Builder policyName(String policyName) { this.policyName = policyName; return this; }
         public Builder policyVersion(int policyVersion) { this.policyVersion = policyVersion; return this; }
+        public Builder tenantEmpresa(String tenantEmpresa) { this.tenantEmpresa = tenantEmpresa; return this; }
         public Builder temporalProcessInstanceId(String temporalProcessInstanceId) { this.temporalProcessInstanceId = temporalProcessInstanceId; return this; }
         public Builder status(String status) { this.status = status; return this; }
         public Builder variables(Map<String, Object> variables) { this.variables = variables; return this; }
@@ -116,8 +122,9 @@ public class ProcessInstance {
         public Builder completedForms(List<CompletedForm> completedForms) { this.completedForms = completedForms; return this; }
 
         public ProcessInstance build() {
-            return new ProcessInstance(id, policyId, policyName, policyVersion, temporalProcessInstanceId, status,
-                    variables, activeNodeIds, initiatedByUserId, initiatedAt, completedAt, result, history, completedForms);
+            return new ProcessInstance(id, policyId, policyName, policyVersion, tenantEmpresa,
+                    temporalProcessInstanceId, status, variables, activeNodeIds, initiatedByUserId,
+                    initiatedAt, completedAt, result, history, completedForms);
         }
     }
 

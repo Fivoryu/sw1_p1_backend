@@ -11,4 +11,6 @@ import java.util.Optional;
 public interface WorkflowDefinitionRepository extends MongoRepository<WorkflowDefinition, String> {
     Optional<WorkflowDefinition> findByPolicyIdAndPolicyVersion(String policyId, int policyVersion);
     List<WorkflowDefinition> findByPolicyIdOrderByPolicyVersionDesc(String policyId);
+
+    void deleteByPolicyId(String policyId);
 }

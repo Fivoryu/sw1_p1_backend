@@ -8,6 +8,8 @@ import java.util.List;
 
 @Repository
 public interface DocumentUploadRepository extends MongoRepository<DocumentUpload, String> {
+    void deleteByProcessInstanceId(String processInstanceId);
+
     List<DocumentUpload> findByProcessInstanceId(String processInstanceId);
     List<DocumentUpload> findByTaskId(String taskId);
 }

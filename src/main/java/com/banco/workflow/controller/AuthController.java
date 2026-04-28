@@ -2,8 +2,11 @@ package com.banco.workflow.controller;
 
 import com.banco.workflow.dto.LoginRequest;
 import com.banco.workflow.dto.LoginResponse;
+import com.banco.workflow.dto.PasswordRecoveryDtos;
+import com.banco.workflow.dto.RegisterClientRequest;
 import com.banco.workflow.model.User;
 import com.banco.workflow.service.AuthService;
+import com.banco.workflow.service.PasswordRecoveryService;
 import com.banco.workflow.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +32,7 @@ public class AuthController {
 
     private final UserService userService;
     private final AuthService authService;
+    private final PasswordRecoveryService passwordRecoveryService;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
@@ -62,9 +66,50 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * CU-22: Registro público de cliente.
+     * Devuelve token JWT para iniciar sesión inmediatamente.
+     */
+    @PostMapping("/register-client")
+    public ResponseEntity<?> registerClient(@RequestBody RegisterClientRequest request) {
+        User created = userService.registerClient(request);
+        String token = authService.generateToken(created);
+        LoginResponse response = LoginResponse.builder()
+                .token(token)
+                .user(LoginResponse.UserDto.builder()
+                        .id(created.getId())
+                        .username(created.getUsername())
+                        .email(created.getEmail())
+                        .departamento(created.getDepartamento())
+                        .empresa(created.getEmpresa())
+                        .roles(created.getRoles())
+                        .build())
+                .build();
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@RequestHeader(value = "Authorization", required = false) String token) {
         return ResponseEntity.ok(Map.of("message", "Logout exitoso"));
+    }
+
+    /**
+     * CU-03: Recuperar contraseña (demo).
+     * En lugar de enviar correo, devuelve un resetToken utilizable para /password/reset.
+     */
+    @PostMapping("/password/forgot")
+    public ResponseEntity<PasswordRecoveryDtos.ForgotPasswordResponse> forgotPassword(
+            @RequestBody PasswordRecoveryDtos.ForgotPasswordRequest request) {
+        return ResponseEntity.ok(passwordRecoveryService.forgot(request));
+    }
+
+    /**
+     * CU-03: Confirmar recuperación de contraseña con token.
+     */
+    @PostMapping("/password/reset")
+    public ResponseEntity<?> resetPassword(@RequestBody PasswordRecoveryDtos.ResetPasswordRequest request) {
+        passwordRecoveryService.reset(request);
+        return ResponseEntity.ok(Map.of("message", "Contraseña actualizada"));
     }
 
     @GetMapping("/verify")

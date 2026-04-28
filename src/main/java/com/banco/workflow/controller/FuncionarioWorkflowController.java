@@ -5,6 +5,7 @@ import com.banco.workflow.service.FuncionarioWorkflowService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,7 @@ import java.util.List;
 @RequestMapping("/v1/workflow/funcionario")
 @RequiredArgsConstructor
 @Slf4j
+@PreAuthorize("hasAnyRole('ADMIN','REVISOR','GERENTE')")
 public class FuncionarioWorkflowController {
 
     private final FuncionarioWorkflowService funcionarioWorkflowService;
@@ -48,7 +50,15 @@ public class FuncionarioWorkflowController {
     public ResponseEntity<FuncionarioWorkflowDtos.CorreccionDTO> solicitarCorreccion(
             @PathVariable String tareaId,
             @RequestBody FuncionarioWorkflowDtos.SolicitarCorreccionRequest request) {
-        return ResponseEntity.ok(funcionarioWorkflowService.solicitarCorreccion(tareaId, request.getMotivo()));
+        return ResponseEntity.ok(funcionarioWorkflowService.solicitarCorreccion(tareaId, request.getMotivo(), request.getTargetNodeId()));
+    }
+
+    /**
+     * CU-17: listar nodos humanos previos posibles para devolución por corrección.
+     */
+    @GetMapping("/tareas/{tareaId}/correccion/targets")
+    public ResponseEntity<List<FuncionarioWorkflowDtos.CorrectionTargetDTO>> correctionTargets(@PathVariable String tareaId) {
+        return ResponseEntity.ok(funcionarioWorkflowService.listCorrectionTargets(tareaId));
     }
 
     @PostMapping("/tareas/{tareaId}/completar")

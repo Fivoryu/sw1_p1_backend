@@ -46,6 +46,7 @@ public class FuncionarioWorkflowService {
         User user = getAuthenticatedUser();
         LinkedHashSet<Task> tasks = new LinkedHashSet<>();
         String department = user.getDepartamento();
+        String userEmpresa = user.getEmpresa();
 
         tasks.addAll(taskRepository.findByAssigneeAndStatus(user.getUsername(), "IN_PROGRESS"));
         tasks.addAll(taskRepository.findByAssigneeAndStatus(user.getUsername(), "PENDING"));
@@ -61,6 +62,7 @@ public class FuncionarioWorkflowService {
         }
 
         return tasks.stream()
+                .filter(task -> taskBelongsToTenant(task, userEmpresa))
                 .filter(task -> {
                     boolean belongsToDepartment = department != null && department.equalsIgnoreCase(task.getDepartmentAssigned());
                     boolean belongsToRole = task.getCandidateRole() != null && user.getRoles().contains(task.getCandidateRole());
@@ -124,6 +126,31 @@ public class FuncionarioWorkflowService {
     }
 
     public FuncionarioWorkflowDtos.CorreccionDTO solicitarCorreccion(String tareaId, String motivo) {
+        return solicitarCorreccion(tareaId, motivo, null);
+    }
+
+    public List<FuncionarioWorkflowDtos.CorrectionTargetDTO> listCorrectionTargets(String tareaId) {
+        User user = getAuthenticatedUser();
+        Task task = loadTask(tareaId);
+        validateTaskAccess(task, user);
+
+        ProcessInstance instance = loadInstance(task.getProcessInstanceId());
+        Policy policy = loadPolicy(instance.getPolicyId());
+        WorkflowDefinition definition = loadDefinition(policy);
+
+        List<String> candidateNodeIds = resolvePreviousHumanNodes(instance, task, definition);
+        return candidateNodeIds.stream()
+                .map(definition.getGraph()::get)
+                .filter(Objects::nonNull)
+                .map(node -> FuncionarioWorkflowDtos.CorrectionTargetDTO.builder()
+                        .nodeId(node.getId())
+                        .nodeName(node.getName())
+                        .nodeType(node.getType())
+                        .build())
+                .toList();
+    }
+
+    public FuncionarioWorkflowDtos.CorreccionDTO solicitarCorreccion(String tareaId, String motivo, String targetNodeId) {
         if (motivo == null || motivo.isBlank()) {
             throw new IllegalArgumentException("Debes indicar el motivo de la corrección");
         }
@@ -137,7 +164,7 @@ public class FuncionarioWorkflowService {
         Policy policy = loadPolicy(instance.getPolicyId());
         WorkflowDefinition definition = loadDefinition(policy);
 
-        String previousNodeId = resolvePreviousHumanNode(instance, task);
+        String previousNodeId = resolveTargetCorrectionNode(instance, task, definition, targetNodeId);
         if (previousNodeId == null) {
             throw new IllegalArgumentException("No existe un paso previo válido para devolver el trámite");
         }
@@ -154,7 +181,15 @@ public class FuncionarioWorkflowService {
 
         instance.setStatus("IN_PROGRESS");
         instance.setActiveNodeIds(new ArrayList<>(List.of(previousNodeId)));
-        workflowHistoryService.record(instance, task.getNodeId(), "RETURNED_FOR_CORRECTION", task.getNodeType(), user.getId(), Map.of("motivo", motivo, "previousNodeId", previousNodeId), null);
+        workflowHistoryService.record(
+                instance,
+                task.getNodeId(),
+                "RETURNED_FOR_CORRECTION",
+                task.getNodeType(),
+                user.getId(),
+                Map.of("motivo", motivo, "previousNodeId", previousNodeId),
+                null
+        );
         processInstanceRepository.save(instance);
 
         Task returnedTask = taskAssignmentService.createHumanTask(instance, previousNode);
@@ -263,8 +298,10 @@ public class FuncionarioWorkflowService {
         User user = getAuthenticatedUser();
         LocalDateTime from = parseDateStart(fechaDesde);
         LocalDateTime to = parseDateEnd(fechaHasta);
+        String userEmpresa = user.getEmpresa();
 
         return processInstanceRepository.findAll().stream()
+                .filter(instance -> matchesTenant(instance, userEmpresa))
                 .filter(instance -> isVisibleToUser(instance, user))
                 .filter(instance -> workflowInstanceId == null || workflowInstanceId.isBlank() || instance.getId().toLowerCase().contains(workflowInstanceId.toLowerCase()))
                 .filter(instance -> estado == null || estado.isBlank() || estado.equalsIgnoreCase(instance.getStatus()))
@@ -371,6 +408,56 @@ public class FuncionarioWorkflowService {
                 .orElse(null);
     }
 
+    private String resolveTargetCorrectionNode(
+            ProcessInstance instance,
+            Task currentTask,
+            WorkflowDefinition definition,
+            String targetNodeId
+    ) {
+        List<String> targets = resolvePreviousHumanNodes(instance, currentTask, definition);
+        if (targets.isEmpty()) {
+            return null;
+        }
+        if (targetNodeId == null || targetNodeId.isBlank()) {
+            return targets.get(0);
+        }
+        String requested = targetNodeId.trim();
+        if (!targets.contains(requested)) {
+            throw new IllegalArgumentException("El nodo destino no es válido para corrección en este trámite");
+        }
+        return requested;
+    }
+
+    private List<String> resolvePreviousHumanNodes(ProcessInstance instance, Task currentTask, WorkflowDefinition definition) {
+        if (instance.getHistory() == null || definition.getGraph() == null) {
+            return List.of();
+        }
+        // Orden descendente por historial (últimos primero), únicos, solo UserTask, excluye nodo actual.
+        List<String> ordered = instance.getHistory().stream()
+                .map(ProcessInstance.HistoryEntry::getNodeId)
+                .filter(Objects::nonNull)
+                .filter(nodeId -> !nodeId.equals(currentTask.getNodeId()))
+                .toList();
+
+        List<String> targets = new ArrayList<>();
+        for (int i = ordered.size() - 1; i >= 0; i--) {
+            // history suele estar ordenado asc; invertimos recorriendo desde el final
+            String nodeId = ordered.get(i);
+            if (targets.contains(nodeId)) {
+                continue;
+            }
+            BpmnNode node = definition.getGraph().get(nodeId);
+            if (node == null) {
+                continue;
+            }
+            if (node.getType() != null && node.getType().toLowerCase().contains("usertask")) {
+                targets.add(nodeId);
+            }
+        }
+        // targets quedó con últimos primero por el recorrido; ya sirve como lista de selección.
+        return targets;
+    }
+
     private boolean isVisibleToUser(ProcessInstance instance, User user) {
         String username = user.getUsername();
         String department = user.getDepartamento();
@@ -457,6 +544,28 @@ public class FuncionarioWorkflowService {
                     ));
         }
         return Map.of();
+    }
+
+    private boolean matchesTenant(ProcessInstance instance, String userEmpresa) {
+        if (userEmpresa == null || userEmpresa.isBlank()) {
+            return true;
+        }
+        String instanceEmpresa = instance.getTenantEmpresa();
+        if (instanceEmpresa == null || instanceEmpresa.isBlank()) {
+            return true;
+        }
+        return userEmpresa.equalsIgnoreCase(instanceEmpresa);
+    }
+
+    private boolean taskBelongsToTenant(Task task, String userEmpresa) {
+        if (userEmpresa == null || userEmpresa.isBlank()) {
+            return true;
+        }
+        ProcessInstance instance = processInstanceRepository.findById(task.getProcessInstanceId()).orElse(null);
+        if (instance == null) {
+            return false;
+        }
+        return matchesTenant(instance, userEmpresa);
     }
 
     private User getAuthenticatedUser() {

@@ -33,7 +33,11 @@ public class TemporalWorkflowService {
         Policy policy = policyRepository.findById(policyId)
                 .orElseThrow(() -> new RuntimeException("Política no encontrada: " + policyId));
         if (!"PUBLISHED".equals(policy.getStatus())) {
-            throw new RuntimeException("La política no está publicada");
+            throw new IllegalArgumentException("La política no está publicada");
+        }
+        if (policy.getTenantEmpresa() != null && initiator.getEmpresa() != null
+                && !policy.getTenantEmpresa().equalsIgnoreCase(initiator.getEmpresa())) {
+            throw new IllegalArgumentException("No puedes iniciar trámites de otra empresa");
         }
         WorkflowDefinition definition = workflowDefinitionService.getDefinitionByPolicy(policy.getId(), policy.getVersion())
                 .orElseThrow(() -> new RuntimeException("La política no tiene una definición ejecutable publicada"));

@@ -12,5 +12,7 @@ public interface ProcessInstanceRepository extends MongoRepository<ProcessInstan
     List<ProcessInstance> findByStatus(String status);
     List<ProcessInstance> findByPolicyId(String policyId);
     List<ProcessInstance> findByInitiatedByUserId(String initiatedByUserId);
+    List<ProcessInstance> findByTenantEmpresa(String tenantEmpresa);
+    List<ProcessInstance> findByTenantEmpresaAndStatus(String tenantEmpresa, String status);
     Optional<ProcessInstance> findByTemporalProcessInstanceId(String temporalId);
 }
