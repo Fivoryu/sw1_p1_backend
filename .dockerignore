@@ -1,0 +1,7 @@
+target/
+.git/
+.github/
+*.log
+README.md
+GRAPHQL_GUIDE.md
+run-spring-boot.ps1
