@@ -5,7 +5,7 @@ spring:
     mongodb:
       uri: ${MONGODB_URI}
       database: ${MONGODB_DB:workflow1}
-      auto-index-creation: true
+      auto-index-creation: ${MONGODB_AUTO_INDEX_CREATION:false}
   security:
     jwt:
       secret: ${JWT_SECRET:workflow-engine-super-secret-key-for-hs512-signing-2026-atlas-backend-auth-token-secure}
