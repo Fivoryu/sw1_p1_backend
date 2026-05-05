@@ -16,6 +16,9 @@ public class Policy {
     private String description;
     private int version;
     private String bpmnXml;
+    private Map<String, Object> umlActivityJson;
+    private String umlVersion;
+    private String diagramNotation;
     private String status;
     private Map<String, BpmnNode> graph;
     private List<DepartmentDefinition> departments;
@@ -34,7 +37,8 @@ public class Policy {
     public Policy() {
     }
 
-    public Policy(String id, String name, String description, int version, String bpmnXml, String status,
+    public Policy(String id, String name, String description, int version, String bpmnXml,
+                  Map<String, Object> umlActivityJson, String umlVersion, String diagramNotation, String status,
                   Map<String, BpmnNode> graph, List<DepartmentDefinition> departments, List<FormDefinition> forms,
                   String createdByUserId, String ownerUserId, String tenantEmpresa, boolean collaborationEnabled,
                   String collaborationMode, String lastEditedByUserId, LocalDateTime lastAutoSavedAt, LocalDateTime createdAt,
@@ -44,6 +48,9 @@ public class Policy {
         this.description = description;
         this.version = version;
         this.bpmnXml = bpmnXml;
+        this.umlActivityJson = umlActivityJson;
+        this.umlVersion = umlVersion;
+        this.diagramNotation = diagramNotation;
         this.status = status;
         this.graph = graph;
         this.departments = departments;
@@ -102,6 +109,30 @@ public class Policy {
 
     public void setBpmnXml(String bpmnXml) {
         this.bpmnXml = bpmnXml;
+    }
+
+    public Map<String, Object> getUmlActivityJson() {
+        return umlActivityJson;
+    }
+
+    public void setUmlActivityJson(Map<String, Object> umlActivityJson) {
+        this.umlActivityJson = umlActivityJson;
+    }
+
+    public String getUmlVersion() {
+        return umlVersion;
+    }
+
+    public void setUmlVersion(String umlVersion) {
+        this.umlVersion = umlVersion;
+    }
+
+    public String getDiagramNotation() {
+        return diagramNotation;
+    }
+
+    public void setDiagramNotation(String diagramNotation) {
+        this.diagramNotation = diagramNotation;
     }
 
     public String getStatus() {
@@ -222,6 +253,9 @@ public class Policy {
         private String description;
         private int version;
         private String bpmnXml;
+        private Map<String, Object> umlActivityJson;
+        private String umlVersion;
+        private String diagramNotation;
         private String status;
         private Map<String, BpmnNode> graph;
         private List<DepartmentDefinition> departments;
@@ -242,6 +276,9 @@ public class Policy {
         public Builder description(String description) { this.description = description; return this; }
         public Builder version(int version) { this.version = version; return this; }
         public Builder bpmnXml(String bpmnXml) { this.bpmnXml = bpmnXml; return this; }
+        public Builder umlActivityJson(Map<String, Object> umlActivityJson) { this.umlActivityJson = umlActivityJson; return this; }
+        public Builder umlVersion(String umlVersion) { this.umlVersion = umlVersion; return this; }
+        public Builder diagramNotation(String diagramNotation) { this.diagramNotation = diagramNotation; return this; }
         public Builder status(String status) { this.status = status; return this; }
         public Builder graph(Map<String, BpmnNode> graph) { this.graph = graph; return this; }
         public Builder departments(List<DepartmentDefinition> departments) { this.departments = departments; return this; }
@@ -258,7 +295,7 @@ public class Policy {
         public Builder active(boolean active) { this.active = active; return this; }
 
         public Policy build() {
-            return new Policy(id, name, description, version, bpmnXml, status, graph, departments, forms, createdByUserId,
+            return new Policy(id, name, description, version, bpmnXml, umlActivityJson, umlVersion, diagramNotation, status, graph, departments, forms, createdByUserId,
                     ownerUserId, tenantEmpresa, collaborationEnabled, collaborationMode, lastEditedByUserId, lastAutoSavedAt,
                     createdAt, updatedAt, active);
         }

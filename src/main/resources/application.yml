@@ -26,6 +26,9 @@ cors:
 
 server:
   port: ${PORT:8080}
+  # Respect X-Forwarded-* headers (ALB/CloudFront terminate TLS).
+  # This makes the app correctly consider requests as https when behind a reverse proxy.
+  forward-headers-strategy: framework
   servlet:
     context-path: /api
 

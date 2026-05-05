@@ -142,7 +142,7 @@ public class BpmnParserService {
             }
         }
 
-        return "ROLE_REVISOR";
+        return null;
     }
 
     private String extractFormId(Element el) {

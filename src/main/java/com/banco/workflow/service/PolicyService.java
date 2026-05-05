@@ -31,6 +31,8 @@ public class PolicyService {
     public static final String COLLABORATION_PRIVATE = "PRIVATE";
     public static final String COLLABORATION_READ_ONLY = "READ_ONLY";
     public static final String COLLABORATION_EDIT_SHARED = "EDIT_SHARED";
+    public static final String UML_VERSION_25 = "2.5";
+    public static final String DIAGRAM_NOTATION_UML_ACTIVITY = "BPMN_EXECUTABLE_WITH_UML_ACTIVITY_VIEW";
 
     private final PolicyRepository policyRepository;
     private final BpmnParserService parserService;
@@ -43,13 +45,17 @@ public class PolicyService {
     private final WorkflowDefinitionRepository workflowDefinitionRepository;
 
     public Policy createPolicy(String name, String description, String bpmnXml,
+                               Map<String, Object> umlActivityJson,
+                               String umlVersion,
+                               String diagramNotation,
                                List<DepartmentDefinition> departments,
                                List<FormDefinition> forms,
                                Boolean collaborationEnabled,
                                String collaborationMode) throws Exception {
         User actor = requireAuthenticatedUser();
         String resolvedName = resolvePolicyName(name);
-        String resolvedXml = bpmnXml != null && !bpmnXml.isBlank() ? bpmnXml : defaultDraftBpmnXml();
+        Map<String, Object> resolvedUmlActivity = resolveUmlActivity(umlActivityJson, null);
+        String resolvedXml = generateTechnicalBpmnXml(resolvedUmlActivity);
         Map<String, com.banco.workflow.model.BpmnNode> nodes = tryParseDraftGraph(resolvedXml);
         if (!nodes.isEmpty()) {
             validateTaskConfiguration(nodes, departments, forms);
@@ -68,6 +74,9 @@ public class PolicyService {
                 .name(resolvedName)
                 .description(description)
                 .bpmnXml(resolvedXml)
+                .umlActivityJson(resolvedUmlActivity)
+                .umlVersion(resolveUmlVersion(umlVersion))
+                .diagramNotation(resolveDiagramNotation(diagramNotation))
                 .version(version)
                 .status("DRAFT")
                 .graph(nodes)
@@ -114,6 +123,9 @@ public class PolicyService {
     }
 
     public Policy updatePolicy(String id, String name, String description, String bpmnXml,
+                               Map<String, Object> umlActivityJson,
+                               String umlVersion,
+                               String diagramNotation,
                                List<DepartmentDefinition> departments,
                                List<FormDefinition> forms,
                                Boolean collaborationEnabled,
@@ -124,7 +136,8 @@ public class PolicyService {
         assertCanEditPolicy(existing, actor);
 
         String resolvedName = resolvePolicyName(name, existing.getName());
-        String resolvedXml = bpmnXml != null && !bpmnXml.isBlank() ? bpmnXml : existing.getBpmnXml();
+        Map<String, Object> resolvedUmlActivity = resolveUmlActivity(umlActivityJson, existing.getUmlActivityJson());
+        String resolvedXml = generateTechnicalBpmnXml(resolvedUmlActivity);
         Map<String, com.banco.workflow.model.BpmnNode> nodes = tryParseDraftGraph(resolvedXml);
         if (!nodes.isEmpty()) {
             validateTaskConfiguration(nodes, departments, forms);
@@ -133,6 +146,9 @@ public class PolicyService {
         existing.setName(resolvedName);
         existing.setDescription(description);
         existing.setBpmnXml(resolvedXml);
+        existing.setUmlActivityJson(resolvedUmlActivity);
+        existing.setUmlVersion(resolveUmlVersion(umlVersion));
+        existing.setDiagramNotation(resolveDiagramNotation(diagramNotation));
         existing.setGraph(nodes);
         existing.setDepartments(safeDepartments(departments));
         existing.setForms(safeForms(forms));
@@ -164,6 +180,9 @@ public class PolicyService {
         Policy policy = policyRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Política no encontrada: " + id));
         assertCanEditPolicy(policy, actor);
+        if (policy.getUmlActivityJson() != null && !policy.getUmlActivityJson().isEmpty()) {
+            policy.setBpmnXml(generateTechnicalBpmnXml(resolveUmlActivity(policy.getUmlActivityJson(), null)));
+        }
         String xml = policy.getBpmnXml() != null && !policy.getBpmnXml().isBlank() ? policy.getBpmnXml() : defaultDraftBpmnXml();
         Map<String, com.banco.workflow.model.BpmnNode> nodes = parseAndValidateGraph(xml);
         validateTaskConfiguration(nodes, policy.getDepartments(), policy.getForms());
@@ -368,6 +387,170 @@ public class PolicyService {
             return COLLABORATION_EDIT_SHARED;
         }
         return COLLABORATION_READ_ONLY;
+    }
+
+    private String resolveUmlVersion(String requestedVersion) {
+        if (requestedVersion != null && !requestedVersion.isBlank()) {
+            return requestedVersion.trim();
+        }
+        return UML_VERSION_25;
+    }
+
+    private String resolveDiagramNotation(String requestedNotation) {
+        if (requestedNotation != null && !requestedNotation.isBlank()) {
+            return requestedNotation.trim();
+        }
+        return DIAGRAM_NOTATION_UML_ACTIVITY;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resolveUmlActivity(Map<String, Object> requestedUml, Map<String, Object> fallbackUml) {
+        Map<String, Object> resolved = requestedUml != null && !requestedUml.isEmpty()
+                ? requestedUml
+                : fallbackUml;
+        if (resolved == null || resolved.isEmpty()) {
+            return defaultDraftUmlActivityJson();
+        }
+        Object nodes = resolved.get("nodes");
+        Object partitions = resolved.get("partitions");
+        Object metadata = resolved.get("metadata");
+        if (!(nodes instanceof List<?>) || !(partitions instanceof List<?>)) {
+            throw new IllegalArgumentException("El diagrama UML 2.5 debe incluir nodes y partitions");
+        }
+        if (((List<?>) partitions).isEmpty()) {
+            throw new IllegalArgumentException("El diagrama UML 2.5 debe incluir al menos una particion/calle");
+        }
+        if (!(metadata instanceof Map<?, ?> metadataMap)) {
+            throw new IllegalArgumentException("El diagrama UML 2.5 debe incluir metadata");
+        }
+        Object umlVersion = metadataMap.get("umlVersion");
+        Object diagramType = metadataMap.get("diagramType");
+        if (!UML_VERSION_25.equals(String.valueOf(umlVersion))) {
+            throw new IllegalArgumentException("El diagrama debe usar UML 2.5");
+        }
+        if (!"ActivityDiagram".equals(String.valueOf(diagramType))) {
+            throw new IllegalArgumentException("El diagrama debe ser ActivityDiagram");
+        }
+        long initialCount = ((List<?>) nodes).stream()
+                .filter(Map.class::isInstance)
+                .map(item -> (Map<String, Object>) item)
+                .filter(item -> "INITIAL".equals(String.valueOf(item.get("type"))))
+                .count();
+        if (initialCount != 1) {
+            throw new IllegalArgumentException("El diagrama UML 2.5 debe tener exactamente un nodo inicial");
+        }
+        boolean hasFinal = ((List<?>) nodes).stream()
+                .filter(Map.class::isInstance)
+                .map(item -> (Map<String, Object>) item)
+                .anyMatch(item -> "ACTIVITY_FINAL".equals(String.valueOf(item.get("type"))));
+        if (!hasFinal) {
+            throw new IllegalArgumentException("El diagrama UML 2.5 debe tener al menos un nodo final");
+        }
+        return resolved;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String generateTechnicalBpmnXml(Map<String, Object> umlActivity) {
+        List<Map<String, Object>> nodes = ((List<?>) umlActivity.getOrDefault("nodes", List.of())).stream()
+                .filter(Map.class::isInstance)
+                .map(item -> (Map<String, Object>) item)
+                .filter(node -> !"NOTE".equals(String.valueOf(node.get("type"))))
+                .toList();
+        List<Map<String, Object>> edges = ((List<?>) umlActivity.getOrDefault("edges", List.of())).stream()
+                .filter(Map.class::isInstance)
+                .map(item -> (Map<String, Object>) item)
+                .filter(edge -> !"Annotation".equals(String.valueOf(edge.get("type"))))
+                .toList();
+
+        StringBuilder processItems = new StringBuilder();
+        for (Map<String, Object> node : nodes) {
+            processItems.append(renderTechnicalBpmnNode(node)).append('\n');
+        }
+
+        StringBuilder flowItems = new StringBuilder();
+        Set<String> nodeIds = nodes.stream()
+                .map(node -> String.valueOf(node.get("id")))
+                .collect(java.util.stream.Collectors.toSet());
+        int generatedFlowIndex = 1;
+        for (Map<String, Object> edge : edges) {
+            String source = String.valueOf(edge.getOrDefault("source", ""));
+            String target = String.valueOf(edge.getOrDefault("target", ""));
+            if (!nodeIds.contains(source) || !nodeIds.contains(target)) {
+                continue;
+            }
+            String id = String.valueOf(edge.getOrDefault("id", "UmlFlow_" + generatedFlowIndex++));
+            String guard = edge.get("guard") != null ? " name=\"" + escapeXml(String.valueOf(edge.get("guard"))) + "\"" : "";
+            flowItems.append("    <bpmn:sequenceFlow id=\"")
+                    .append(escapeXml(id))
+                    .append("\" sourceRef=\"")
+                    .append(escapeXml(source))
+                    .append("\" targetRef=\"")
+                    .append(escapeXml(target))
+                    .append("\"")
+                    .append(guard)
+                    .append(" />\n");
+        }
+
+        if (flowItems.length() == 0 && nodes.size() > 1) {
+            for (int index = 0; index < nodes.size() - 1; index++) {
+                flowItems.append("    <bpmn:sequenceFlow id=\"UmlAutoFlow_")
+                        .append(index + 1)
+                        .append("\" sourceRef=\"")
+                        .append(escapeXml(String.valueOf(nodes.get(index).get("id"))))
+                        .append("\" targetRef=\"")
+                        .append(escapeXml(String.valueOf(nodes.get(index + 1).get("id"))))
+                        .append("\" />\n");
+            }
+        }
+
+        return """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                                  id="Definitions_UmlTechnical"
+                                  targetNamespace="https://workflow-cloud.local/uml-technical-bpmn">
+                  <bpmn:process id="Process_UmlTechnical" name="Derivado tecnico desde UML 2.5" isExecutable="true">
+                %s%s  </bpmn:process>
+                  <bpmndi:BPMNDiagram id="BPMNDiagram_UmlTechnical">
+                    <bpmndi:BPMNPlane id="BPMNPlane_UmlTechnical" bpmnElement="Process_UmlTechnical" />
+                  </bpmndi:BPMNDiagram>
+                </bpmn:definitions>
+                """.formatted(processItems, flowItems);
+    }
+
+    private String renderTechnicalBpmnNode(Map<String, Object> node) {
+        String id = escapeXml(String.valueOf(node.getOrDefault("id", UUID.randomUUID().toString())));
+        String name = escapeXml(String.valueOf(node.getOrDefault("label", id)));
+        String type = String.valueOf(node.getOrDefault("type", "ACTION"));
+        return switch (type) {
+            case "INITIAL" -> "    <bpmn:startEvent id=\"" + id + "\" name=\"" + name + "\" />";
+            case "ACTIVITY_FINAL" -> "    <bpmn:endEvent id=\"" + id + "\" name=\"" + name + "\" />";
+            case "DECISION", "MERGE" -> "    <bpmn:exclusiveGateway id=\"" + id + "\" name=\"" + name + "\" />";
+            case "FORK", "JOIN" -> "    <bpmn:parallelGateway id=\"" + id + "\" name=\"" + name + "\" />";
+            default -> "    <bpmn:userTask id=\"" + id + "\" name=\"" + name + "\" />";
+        };
+    }
+
+    private String escapeXml(String value) {
+        return value
+                .replace("&", "&amp;")
+                .replace("\"", "&quot;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
+    }
+
+    private Map<String, Object> defaultDraftUmlActivityJson() {
+        return Map.of(
+                "nodes", List.of(
+                        Map.of("id", "uml_initial", "type", "INITIAL", "label", "Inicio", "partition", "partition_negocio", "umlElement", "InitialNode"),
+                        Map.of("id", "uml_final", "type", "ACTIVITY_FINAL", "label", "Fin", "partition", "partition_negocio", "umlElement", "ActivityFinalNode")
+                ),
+                "edges", List.of(Map.of("id", "uml_edge_1", "source", "uml_initial", "target", "uml_final", "type", "ControlFlow")),
+                "partitions", List.of(Map.of("id", "partition_negocio", "name", "Negocio", "umlElement", "ActivityPartition")),
+                "metadata", Map.of("umlVersion", UML_VERSION_25, "diagramType", "ActivityDiagram", "partitionElement", "ActivityPartition")
+        );
     }
 
     private Map<String, com.banco.workflow.model.BpmnNode> tryParseDraftGraph(String bpmnXml) {

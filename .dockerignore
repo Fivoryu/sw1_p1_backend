@@ -1,7 +1,8 @@
 target/
 .git/
 .github/
+.idea/
+*.iml
+.mvn/wrapper/maven-wrapper.jar
+.DS_Store
 *.log
-README.md
-GRAPHQL_GUIDE.md
-run-spring-boot.ps1

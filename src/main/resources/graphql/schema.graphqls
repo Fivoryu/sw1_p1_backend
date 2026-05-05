@@ -47,6 +47,9 @@ type Policy {
   status: String!
   description: String
   bpmnXml: String!
+  umlActivityJson: JSON
+  umlVersion: String
+  diagramNotation: String
   createdAt: DateTime!
   updatedAt: DateTime!
 }

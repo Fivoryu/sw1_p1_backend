@@ -20,6 +20,9 @@ public class ApiResponse {
         private String name;
         private String description;
         private String bpmnXml;
+        private Map<String, Object> umlActivityJson;
+        private String umlVersion;
+        private String diagramNotation;
         private java.util.List<DepartmentDefinition> departments;
         private java.util.List<FormDefinition> forms;
         private Boolean collaborationEnabled;

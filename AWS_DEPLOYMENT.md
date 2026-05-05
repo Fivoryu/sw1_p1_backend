@@ -1,12 +1,12 @@
 # AWS deployment
 
-Este repositorio queda preparado para desplegarse en AWS App Runner usando una imagen publicada en Amazon ECR.
+Este repositorio se despliega con una **imagen Docker** publicada en **Amazon ECR** y un servicio **ECS/Fargate** (o equivalente) que use esa imagen. El `Dockerfile` en la raíz del repo empaqueta la aplicacion Spring Boot 21 en un JAR y lo ejecuta con el JRE.
 
 ## Recursos AWS necesarios
 
 - Un repositorio de Amazon ECR
-- Un servicio de AWS App Runner configurado para leer la imagen desde ECR
-- Un rol IAM para GitHub Actions con permisos sobre ECR y App Runner
+- Un cluster y servicio ECS (Fargate) que usen la imagen `latest` (u otra etiqueta)
+- Un rol IAM para GitHub Actions con permisos sobre ECR y ECS
 
 ## Variables de GitHub Actions
 
@@ -14,13 +14,14 @@ Configura estas `Repository variables`:
 
 - `AWS_REGION`: region AWS, por ejemplo `us-east-1`
 - `ECR_REPOSITORY`: nombre del repositorio ECR
-- `APP_RUNNER_SERVICE_ARN`: ARN del servicio App Runner
+- `ECS_CLUSTER`: nombre del cluster ECS
+- `ECS_SERVICE`: nombre del servicio ECS
 
 Configura este `Repository secret`:
 
 - `AWS_ROLE_ARN`: rol IAM asumido por GitHub Actions via OIDC
 
-## Variables de entorno del servicio App Runner
+## Variables de entorno del contenedor (ECS / tarea)
 
 - `MONGODB_URI`
 - `JWT_SECRET`
@@ -33,5 +34,5 @@ Configura este `Repository secret`:
 ## Flujo de despliegue
 
 - Cada push a `main` ejecuta `.github/workflows/aws-deploy.yml`
-- El workflow compila la app, construye la imagen Docker y la publica en ECR
-- Luego dispara `aws apprunner start-deployment` para que App Runner tome la imagen `latest`
+- El workflow construye la imagen Docker (Maven dentro del `Dockerfile`) y la publica en ECR
+- Luego ejecuta `aws ecs update-service --force-new-deployment` para que el servicio tome la nueva imagen
